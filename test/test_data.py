@@ -28,3 +28,14 @@ def test_age_on_index_that_doesnt_match_time_bin_naming():
     i = esconsole.IndexInfo(cat_line)
     eq_(i.age, -1)
 
+
+def test_cat_response():
+    c = esconsole.CatIndicesResponse("""green  open   some_random_index_name   5   0          0            0       720b           720b
+       close  some_random_index_name2
+green  open   some_random_index_name3   5   0          0            0       720b           720b"""
+    )
+
+    eq_(3, len(c))
+
+    eq_("green", c[0].health)
+    eq_("close", c[1].status)

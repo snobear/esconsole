@@ -51,7 +51,7 @@ class MultiSelectListWidget(urwid.WidgetWrap):
         else:
             return super(MultiSelectListWidget, self).keypress(size, key)
 
-class CatIndicesLine(object):
+class CatIndicesResponseLine(object):
         def __init__(self, line):
             hdrs = ['health', 'status', 'index', 'pri', 'rep', 'docs_count', 'docs_deleted', 'store_size', 'pri_store_size']
             int_fields = set(['pri', 'rep', 'docs_count', 'docs_deleted'])
@@ -72,10 +72,25 @@ class CatIndicesLine(object):
                         val = f
                     setattr(self, h, val)
 
+class CatIndicesResponse(object):
+    """ Wrap Cat Indices Responses """
+    def __init__(self, cat_indices_result):
+        self.headers = ['health', 'status', 'index', 'pri', 'rep', 'docs_count', 'docs_deleted', 'store_size', 'pri_store_size']
+        self.indices = []
+
+        for line in cat_indices_result.rstrip().split("\n"):
+            self.indices.append(CatIndicesResponseLine(line))
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, ndx):
+        return self.indices[ndx]
+
 class IndexInfo(object):
-    """ Wraps CatIndicesLine and provides additional info """
+    """ Wraps CatIndicesResponseLine and provides additional info """
     def __init__(self, cat_line):
-        self.cat_indices_info = CatIndicesLine(cat_line)
+        self.cat_indices_info = CatIndicesResponseLine(cat_line)
 
     @property
     def age(self):
@@ -106,7 +121,7 @@ class IndicesListWidget(urwid.WidgetWrap):
     def sort_indices(self, indices):
         ind_objs = []
         for i in indices:
-            ind_objs.append((i, CatIndicesLine(i).index))
+            ind_objs.append((i, CatIndicesResponseLine(i).index))
 
         ind_objs = sorted(ind_objs, key=lambda x: x[1])
         return [i[0] for i in ind_objs]
@@ -129,7 +144,7 @@ class IndicesListWidget(urwid.WidgetWrap):
         if answer != 'y':
             return
 
-        indices = [CatIndicesLine(l) for l in self.selected()]
+        indices = [CatIndicesResponseLine(l) for l in self.selected()]
         for i in indices:
             self.es.indices.delete(i.index)
 
@@ -140,7 +155,7 @@ class IndicesListWidget(urwid.WidgetWrap):
         return self.multilistbox.item_under_cursor()
 
     def append_index_after_index_under_cursor(self):
-        index_under_cursor = CatIndicesLine(self.index_under_cursor())
+        index_under_cursor = CatIndicesResponseLine(self.index_under_cursor())
 
         # Come up with suggestion for new index name
         # This will break for non date type indices
