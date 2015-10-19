@@ -4,6 +4,7 @@ import sys
 import re
 import time
 import threading
+import datetime
 
 # Run /_cat/health every this many seconds
 HEALTH_UPDATE_FREQ=3
@@ -70,6 +71,27 @@ class CatIndicesLine(object):
                     else:
                         val = f
                     setattr(self, h, val)
+
+class IndexInfo(object):
+    """ Wraps CatIndicesLine and provides additional info """
+    def __init__(self, cat_line):
+        self.cat_indices_info = CatIndicesLine(cat_line)
+
+    @property
+    def age(self):
+        # return age in days
+        age_groups = re.match(r"^(\d+-\d+-\d+t\d+:\d+:\d+).(\d+z)$", self.cat_indices_info.index)
+        if age_groups is None:
+            return -1
+
+        tstamp, msec = age_groups.group(1,2)
+        date = datetime.datetime.strptime(tstamp, "%Y-%m-%dt%H:%M:%S")
+        delta = datetime.datetime.now() - date
+        return delta.days
+
+    # route other attrs through cat_indices_info
+    def __getattr__(self, attr):
+        return getattr(self.cat_indices_info, attr)
         
         
 class IndicesListWidget(urwid.WidgetWrap):
@@ -372,10 +394,11 @@ class MainScreenWidget(urwid.WidgetWrap):
         self.main_pile.contents[2] =  (IndicesListWidget(self, self.es), self.main_pile.contents[2][1])
 
 
-main_screen = MainScreenWidget()
+if __name__ == "__main__":
+    main_screen = MainScreenWidget()
 
-loop = urwid.MainLoop(main_screen, palette=[('reversed', 'standout', '')])
+    loop = urwid.MainLoop(main_screen, palette=[('reversed', 'standout', '')])
 
-main_screen.init_loop(loop)
+    main_screen.init_loop(loop)
 
-loop.run()
+    loop.run()
