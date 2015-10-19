@@ -271,8 +271,8 @@ class HelpPopupWidget(urwid.WidgetWrap):
 
                                   MOVING
 
-    h, up arrow         up
     j, down arrow       down
+    k, up arrow         up
     page down           page down
     page up             page up
     g                   go to first line (not implemented)
