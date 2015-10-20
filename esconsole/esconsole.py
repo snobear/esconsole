@@ -53,6 +53,7 @@ class MultiSelectListWidget(urwid.WidgetWrap):
 
 class CatIndicesResponseLine(object):
         def __init__(self, line):
+            self.line = line
             hdrs = ['health', 'status', 'index', 'pri', 'rep', 'docs_count', 'docs_deleted', 'store_size', 'pri_store_size']
             int_fields = set(['pri', 'rep', 'docs_count', 'docs_deleted'])
             # es 1.7 headers ^
@@ -72,6 +73,9 @@ class CatIndicesResponseLine(object):
                         val = f
                     setattr(self, h, val)
 
+        def __repr__(self):
+            return self.line
+
 class CatIndicesResponse(object):
     """ Wrap Cat Indices Responses """
     def __init__(self, cat_indices_result):
@@ -81,6 +85,8 @@ class CatIndicesResponse(object):
         for line in cat_indices_result.rstrip().split("\n"):
             self.indices.append(CatIndicesResponseLine(line))
 
+        self.indices = sorted(self.indices, key=lambda x: x.index)
+
     def __len__(self):
         return len(self.indices)
 
@@ -89,8 +95,8 @@ class CatIndicesResponse(object):
 
 class IndexInfo(object):
     """ Wraps CatIndicesResponseLine and provides additional info """
-    def __init__(self, cat_line):
-        self.cat_indices_info = CatIndicesResponseLine(cat_line)
+    def __init__(self, cat_indices_info):
+        self.cat_indices_info = cat_indices_info
 
     @property
     def age(self):
@@ -107,24 +113,21 @@ class IndexInfo(object):
     # route other attrs through cat_indices_info
     def __getattr__(self, attr):
         return getattr(self.cat_indices_info, attr)
-        
+
+    def __repr__(self):
+        return str(self.cat_indices_info)
+
         
 class IndicesListWidget(urwid.WidgetWrap):
     """ This widget displays the Elasticsearch Cat Indices result in a sorted way """
     def __init__(self, main, es):
         self.es = es
         self.main = main
-        indices = self.sort_indices(es.cat.indices().rstrip().split("\n"))
-        self.multilistbox = MultiSelectListWidget(indices)
+        self.indices = CatIndicesResponse(self.es.cat.indices())
+        self.index_infos = [str(IndexInfo(i)) for i in self.indices]
+
+        self.multilistbox = MultiSelectListWidget(self.index_infos)
         super(IndicesListWidget, self).__init__(self.multilistbox)
-
-    def sort_indices(self, indices):
-        ind_objs = []
-        for i in indices:
-            ind_objs.append((i, CatIndicesResponseLine(i).index))
-
-        ind_objs = sorted(ind_objs, key=lambda x: x[1])
-        return [i[0] for i in ind_objs]
 
     def keypress(self, size, key):
         if key == 'D':
