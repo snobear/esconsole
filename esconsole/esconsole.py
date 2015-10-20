@@ -5,10 +5,19 @@ import re
 import time
 import threading
 import datetime
+import itertools
 
 # Run /_cat/health every this many seconds
 HEALTH_UPDATE_FREQ=3
 
+debug = False
+if debug:
+    debug_fh = open("debug.txt", "w")
+def debug(s):
+    global debug_fh
+    debug_fh.write(str(s))
+    debug_fh.write("\n")
+    debug_fh.flush()
 
 
 class MultiSelectListWidget(urwid.WidgetWrap):
@@ -127,10 +136,55 @@ class CatIndicesResponse(object):
     def __getitem__(self, ndx):
         return self.indices[ndx]
 
+class CatSegmentsResponse(object):
+    """ Wrap Cat Segments Responses """
+    def __init__(self, cat_segments_result):
+        self.headers = ['index', 'shard', 'prirep', 'ip', 'segment', 'generation', 'docs_count', 'docs_deleted', 'size', 'size_memory', 'committed', 'searchable', 'version', 'compound']
+        self.segments = []
+
+        for line in cat_segments_result.rstrip().split("\n"):
+            self.segments.append(CatSegmentsResponseLine(line))
+
+    def __len__(self):
+        return len(self.segments)
+
+    def __getitem__(self, ndx):
+        return self.segments[ndx]
+
+class CatSegmentsResponseLine(object):
+        def __init__(self, line):
+            self.line = line
+            hdrs = ['index', 'shard', 'prirep', 'ip', 'segment', 'generation', 'docs_count', 'docs_deleted', 'size', 'size_memory', 'committed', 'searchable', 'version', 'compound']
+            int_fields = set(['shard', 'generation', 'docs_count', 'docs_deleted'])
+            # es 1.7 headers ^
+            # example
+            # index                    shard prirep ip           segment generation docs.count docs.deleted size size.memory committed searchable version compound
+            # 2015-10-05t00:00:00.000z 0     p      192.168.1.65 _1               1          1            0  2kb        3298 true      true       4.10.4  false
+
+            for h in hdrs:
+                setattr(self, h, None)
+            fields = re.split(" +", line.strip())
+            if len(fields) == 2:
+                self.status, self.index = fields
+            else:
+                for h,f in zip(hdrs, fields):
+                    if h in int_fields:
+                        val = int(f)
+                    else:
+                        val = f
+                    setattr(self, h, val)
+
+        def __repr__(self):
+            return self.line
+
 class IndexInfo(object):
     """ Wraps CatIndicesResponseLine and provides additional info """
     def __init__(self, cat_indices_info):
         self.cat_indices_info = cat_indices_info
+        self.cat_segments_info = []
+
+    def set_cat_segments_info(self, cat_segments_info):
+        self.cat_segments_info = cat_segments_info
 
     @property
     def age(self):
@@ -144,6 +198,16 @@ class IndexInfo(object):
         delta = datetime.datetime.now() - date
         return delta.days
 
+    @property
+    def segments(self):
+        pri_segs = [s for s in self.cat_segments_info if s.prirep == 'p' and s.committed == 'true']
+        unique_segs_per_shard = set()
+
+        for k, g in itertools.groupby(pri_segs, key=lambda x:x.shard):
+            unique_segs_per_shard.add(len(list(g)))
+
+        return ",".join([str(i) for i in sorted(list(unique_segs_per_shard))])
+
     # route other attrs through cat_indices_info
     def __getattr__(self, attr):
         return getattr(self.cat_indices_info, attr)
@@ -153,13 +217,22 @@ class IndexInfo(object):
 
 class IndicesInfo(object):
     """ Adds cat indices plus some other stuff """
-    def __init__(self, cat_indices_response):
+    def __init__(self, cat_indices_response, cat_segments_response):
         self.cat_indices_response = cat_indices_response
+        self.cat_segments_response = cat_segments_response
         self.index_infos = [IndexInfo(i) for i in self.cat_indices_response]
+
+        # Merge in cat segments data
+        index_segments = {}
+        for k, g in itertools.groupby(self.cat_segments_response, key=lambda x:x.index):
+            index_segments[k] = list(g)
+        for i in self.index_infos:
+            if i.index in index_segments:
+                i.set_cat_segments_info(index_segments[i.index])
 
     @property
     def headers(self):
-        return self.cat_indices_response.headers + ['age']
+        return self.cat_indices_response.headers + ['age', 'segments']
 
     def __len__(self):
         return len(self.index_infos)
@@ -175,7 +248,7 @@ class IndicesListWidget(urwid.WidgetWrap):
         self.main = main
         #self.indices = CatIndicesResponse(self.es.cat.indices())
         #self.index_infos = [str(IndexInfo(i)) for i in self.indices]
-        self.indices_info = IndicesInfo(CatIndicesResponse(self.es.cat.indices()))
+        self.indices_info = IndicesInfo(CatIndicesResponse(self.es.cat.indices()), CatSegmentsResponse(self.es.cat.segments()))
 
         self.multilistbox = MultiSelectListWidget(self.indices_info)
         super(IndicesListWidget, self).__init__(self.multilistbox)
