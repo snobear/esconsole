@@ -206,7 +206,13 @@ class IndexInfo(object):
         for k, g in itertools.groupby(pri_segs, key=lambda x:x.shard):
             unique_segs_per_shard.add(len(list(g)))
 
-        return ",".join([str(i) for i in sorted(list(unique_segs_per_shard))])
+        segs_per_shard = sorted(list(unique_segs_per_shard))
+        if len(segs_per_shard) == 0:
+            return ""
+        elif len(segs_per_shard) == 1:
+            return str(segs_per_shard[0])
+        else:
+            return "%d - %d" % (segs_per_shard[0], segs_per_shard[-1])
 
     # route other attrs through cat_indices_info
     def __getattr__(self, attr):
