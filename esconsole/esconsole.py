@@ -264,6 +264,8 @@ class IndicesListWidget(urwid.WidgetWrap):
             self.delete_selected_indices()
         elif key == 'A':
             self.append_index_after_index_under_cursor()
+        elif key == 'R':
+            self.replicate_selected_indices()
         else:
             return super(IndicesListWidget, self).keypress(size, key)
 
@@ -282,6 +284,28 @@ class IndicesListWidget(urwid.WidgetWrap):
             self.es.indices.delete(i.index)
 
         # TODO - validate they are deleted
+        self.main.refresh()
+
+    def replicate_selected_indices(self):
+        if len(self.selected()) == 0:
+            return
+
+        default_reps = self.indices_info[self.selected()[0]].rep
+        self.main.popup(SingleNumberInputPopup("Change replicas on %d indices" % (len(self.selected())), 'Replicas : ', default_reps, self.replicate_selected_indices_answer))
+
+    def replicate_selected_indices_answer(self, cancel, replicas):
+        if cancel:
+            return
+
+        indices = [self.indices_info[ndx] for ndx in self.selected()]
+        for i in indices:
+            self.es.indices.put_settings(index=i.index, body={
+                "index": {
+                    "number_of_replicas": replicas
+                }
+            })
+
+        # TODO - make sure it worked
         self.main.refresh()
 
     def index_under_cursor(self):
@@ -324,6 +348,46 @@ class NumberEdit(urwid.Edit):
 
     def value(self):
         return int(self.edit_text)
+
+class SingleNumberInputPopup(urwid.WidgetWrap):
+    """ Asks for a single number """
+
+    def __init__(self, title, caption, default, callback):
+        self.callback = callback
+        self.edit_box = NumberEdit(caption=caption, default=default)
+
+        pile = urwid.Pile([
+            urwid.Text(title),
+            urwid.Divider('-'),
+            self.edit_box,
+            urwid.Divider(' '),
+            urwid.Text('(enter to accept, esc to cancel)')
+        ])
+
+        frame = urwid.Frame(urwid.LineBox(urwid.Filler(pile)))
+        super(SingleNumberInputPopup, self).__init__(frame)
+
+    def keypress(self, size, key):
+        if key == 'esc':
+            self.hide()
+            self.call_callback(True)
+        elif key == 'enter':
+            self.hide()
+            self.call_callback(False)
+        else:
+            return super(SingleNumberInputPopup, self).keypress(size, key)
+
+    def show_popup(self, base, loop):
+        self.base = base
+        self.loop = loop
+        self.overlay = urwid.Overlay(self, self.base, 'center', 60, 'middle', 7)
+        self.loop.widget = self.overlay
+
+    def call_callback(self, cancel):
+        self.callback(cancel, self.edit_box.value())
+
+    def hide(self):
+        self.loop.widget = self.base
 
 class IndexInputPopup(urwid.WidgetWrap):
     """ A popup that helps create an index """
