@@ -13,23 +13,57 @@ HEALTH_UPDATE_FREQ=3
 
 class MultiSelectListWidget(urwid.WidgetWrap):
     """ This widget implements generic selection and filtering on a list of passed in data. """
-    def __init__(self, els):
-        self.els = els
+    def __init__(self, listdata):
+        # listdata should be array-ish and also implement a .headers property
+        self.listdata = listdata
+
+        # determine how wide each column should be
+        col_width = {}
+        for h in self.listdata.headers:
+            col_width[h] = len(h)
+        for row in self.listdata:
+            for h in self.listdata.headers:
+                val = getattr(row, h)
+                if len(str(val)) > col_width[h]:
+                    col_width[h] = len(str(val))
+
+
+        # format each row
         buttons = []
-        for e in els:
-            buttons.append(urwid.AttrMap(urwid.Button(e), None, focus_map=None))
+        for row in self.listdata:
+            el = []
+            for h in self.listdata.headers:
+                padding = col_width[h] - len(str(getattr(row, h)))
+                el.append(str(getattr(row, h)) + (" " * padding))
+            buttons.append(urwid.AttrMap(urwid.Button(" | ".join(el)), None, focus_map=None))
+
+        # format headers
+        hdr_txt = []
+        for h in self.listdata.headers:
+            padding = col_width[h] - len(h)
+            hdr_txt.append(h + " " * padding)
+
+        # reverse video for headers
+        header_widget = urwid.AttrMap(urwid.Text("  " + "   ".join(hdr_txt)), 'reversed')
         self.listbox = urwid.ListBox(urwid.SimpleFocusListWalker(buttons))
-        super(MultiSelectListWidget, self).__init__(self.listbox)
+        pile = urwid.Pile([
+            ('pack', header_widget),
+            ('weight', 1, self.listbox)
+        ])
+
+        super(MultiSelectListWidget, self).__init__(pile)
 
     def selected(self):
         result = []
+        i = 0
         for el in self.listbox.body:
             if None in el.attr_map and el.attr_map[None] == 'reversed':
-                result.append(el.original_widget.label)
+                result.append(i)
+            i += 1
         return result
 
     def item_under_cursor(self):
-        return self.listbox.focus.original_widget.label
+        return self.listbox.focus_position
 
     def keypress(self, size, key):
         if key == "v":
@@ -58,7 +92,7 @@ class CatIndicesResponseLine(object):
             int_fields = set(['pri', 'rep', 'docs_count', 'docs_deleted'])
             # es 1.7 headers ^
             # example lines
-            # green  open   2015-10-10t00:00:00.000z   5   0          0            0       720b           720b 
+            # green  open   2015-10-10t00:00:00.000z   5   0          0            0       720b           720b
             #        close  2015-08-11t00:00:00.000z
             for h in hdrs:
                 setattr(self, h, None)
@@ -117,16 +151,33 @@ class IndexInfo(object):
     def __repr__(self):
         return str(self.cat_indices_info)
 
-        
+class IndicesInfo(object):
+    """ Adds cat indices plus some other stuff """
+    def __init__(self, cat_indices_response):
+        self.cat_indices_response = cat_indices_response
+        self.index_infos = [IndexInfo(i) for i in self.cat_indices_response]
+
+    @property
+    def headers(self):
+        return self.cat_indices_response.headers + ['age']
+
+    def __len__(self):
+        return len(self.index_infos)
+
+    def __getitem__(self, ndx):
+        return self.index_infos[ndx]
+
+
 class IndicesListWidget(urwid.WidgetWrap):
     """ This widget displays the Elasticsearch Cat Indices result in a sorted way """
     def __init__(self, main, es):
         self.es = es
         self.main = main
-        self.indices = CatIndicesResponse(self.es.cat.indices())
-        self.index_infos = [str(IndexInfo(i)) for i in self.indices]
+        #self.indices = CatIndicesResponse(self.es.cat.indices())
+        #self.index_infos = [str(IndexInfo(i)) for i in self.indices]
+        self.indices_info = IndicesInfo(CatIndicesResponse(self.es.cat.indices()))
 
-        self.multilistbox = MultiSelectListWidget(self.index_infos)
+        self.multilistbox = MultiSelectListWidget(self.indices_info)
         super(IndicesListWidget, self).__init__(self.multilistbox)
 
     def keypress(self, size, key):
@@ -142,12 +193,12 @@ class IndicesListWidget(urwid.WidgetWrap):
 
     def delete_selected_indices(self):
         self.main.popup_yes_no("Delete %d indices?" % (len(self.selected())), self.delete_selected_indices_answer)
-        
+
     def delete_selected_indices_answer(self, answer):
         if answer != 'y':
             return
 
-        indices = [CatIndicesResponseLine(l) for l in self.selected()]
+        indices = [self.indices_info[ndx] for ndx in self.selected()]
         for i in indices:
             self.es.indices.delete(i.index)
 
@@ -155,10 +206,10 @@ class IndicesListWidget(urwid.WidgetWrap):
         self.main.refresh()
 
     def index_under_cursor(self):
-        return self.multilistbox.item_under_cursor()
+        return self.indices_info[self.multilistbox.item_under_cursor()]
 
     def append_index_after_index_under_cursor(self):
-        index_under_cursor = CatIndicesResponseLine(self.index_under_cursor())
+        index_under_cursor = self.index_under_cursor()
 
         # Come up with suggestion for new index name
         # This will break for non date type indices
@@ -194,11 +245,11 @@ class NumberEdit(urwid.Edit):
 
     def value(self):
         return int(self.edit_text)
-        
+
 class IndexInputPopup(urwid.WidgetWrap):
     """ A popup that helps create an index """
     def __init__(self, msg, default_index_name, default_primaries, default_replicas, callback):
-        self.callback = callback        
+        self.callback = callback
 
         self.index_name = urwid.Edit(caption   ='Index name : ', edit_text=default_index_name)
         self.primaries = NumberEdit(caption='Primaries  : ', default=default_primaries)
@@ -220,7 +271,6 @@ class IndexInputPopup(urwid.WidgetWrap):
         self.base = base
         self.loop = loop
         self.overlay = urwid.Overlay(self, self.base, 'center', 60, 'middle', 10)
-    
         self.loop.widget = self.overlay
 
     def keypress(self, size, key):
@@ -238,11 +288,7 @@ class IndexInputPopup(urwid.WidgetWrap):
 
     def hide(self):
         self.loop.widget = self.base
-            
-            
 
-        
-        
 
 class HealthDisplayWidget(urwid.WidgetWrap):
     """ Display cluster health on an interval """
@@ -265,7 +311,7 @@ class ElasticsearchHealthWatchThread(threading.Thread):
         threading.Thread.__init__(self)
         self.es = elasticsearch.Elasticsearch()
         self.daemon = True
-    
+
     def run(self):
         while True:
             self.health = self.es.cat.health(v=True).rstrip()
@@ -275,12 +321,11 @@ class ElasticsearchHealthWatchThread(threading.Thread):
 
 class YesNoPopup(urwid.WidgetWrap):
     def __init__(self, msg, base, loop, callback):
-        
         self.base = base
         self.overlay = urwid.Overlay(urwid.Frame(urwid.LineBox(urwid.Filler(urwid.Text(msg)))), base, 'center', len(msg) + 3, 'middle', 3)
         self.loop = loop
         self.callback = callback
-    
+
         super(YesNoPopup, self).__init__(self.overlay)
         self.loop.widget = self
 
@@ -330,7 +375,7 @@ class HelpPopupWidget(urwid.WidgetWrap):
 
     v                   mark for multi-operation
     c                   clear selections
-    f                   filter (not implemented)                 
+    f                   filter (not implemented)
     /                   search (not implemented)
 --------------------------------------------------------------------------------
 
@@ -344,18 +389,17 @@ class HelpPopupWidget(urwid.WidgetWrap):
                         (press any key to close)
 """
 
-    
+
         self.base = base
         self.overlay = urwid.Overlay(urwid.Frame(urwid.LineBox(urwid.Filler(urwid.Text(help_text)))), base, 'center', 82, 'middle', len(help_text.split("\n")) + 3)
         self.loop = loop
-    
+
         super(HelpPopupWidget, self).__init__(self.overlay)
         self.loop.widget = self
 
     def keypress(self, size, key):
         # cancel popup on any key
         self.loop.widget = self.base
-    
 
 
 class MainScreenWidget(urwid.WidgetWrap):
@@ -374,7 +418,7 @@ class MainScreenWidget(urwid.WidgetWrap):
             urwid.Divider('-'),
             (self.get_screen_rows() - 3, IndicesListWidget(self, self.es))
         ], focus_item=2)
-    
+
         main_filler = urwid.Filler(self.main_pile, valign='top', height='pack')
 
         super(MainScreenWidget, self).__init__(main_filler)
@@ -404,7 +448,7 @@ class MainScreenWidget(urwid.WidgetWrap):
             self.refresh()
         elif key == '?':
             HelpPopupWidget(self, self.loop)
-        else:    
+        else:
             return super(MainScreenWidget, self).keypress(size, key)
 
     def refresh(self):
