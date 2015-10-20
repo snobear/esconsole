@@ -182,9 +182,13 @@ class IndexInfo(object):
     def __init__(self, cat_indices_info):
         self.cat_indices_info = cat_indices_info
         self.cat_segments_info = []
+        self.prev_state = None
 
     def set_cat_segments_info(self, cat_segments_info):
         self.cat_segments_info = cat_segments_info
+
+    def set_prev_state(self, prev_state):
+        self.prev_state = prev_state
 
     @property
     def age(self):
@@ -214,6 +218,16 @@ class IndexInfo(object):
         else:
             return "%d - %d" % (segs_per_shard[0], segs_per_shard[-1])
 
+    @property
+    def hot(self):
+        if not self.prev_state:
+            return "?"
+
+        if self.prev_state.docs_count != self.docs_count:
+            return "y"
+        return ""
+
+
     # route other attrs through cat_indices_info
     def __getattr__(self, attr):
         return getattr(self.cat_indices_info, attr)
@@ -238,7 +252,7 @@ class IndicesInfo(object):
 
     @property
     def headers(self):
-        return self.cat_indices_response.headers + ['age', 'segments']
+        return self.cat_indices_response.headers + ['age', 'segments', 'hot']
 
     def __len__(self):
         return len(self.index_infos)
@@ -249,12 +263,18 @@ class IndicesInfo(object):
 
 class IndicesListWidget(urwid.WidgetWrap):
     """ This widget displays the Elasticsearch Cat Indices result in a sorted way """
-    def __init__(self, main, es):
+    def __init__(self, main, es, prev_state=None):
         self.es = es
         self.main = main
-        #self.indices = CatIndicesResponse(self.es.cat.indices())
-        #self.index_infos = [str(IndexInfo(i)) for i in self.indices]
         self.indices_info = IndicesInfo(CatIndicesResponse(self.es.cat.indices()), CatSegmentsResponse(self.es.cat.segments()))
+
+        if prev_state:
+            cur_state = {}
+            for i in self.indices_info:
+                cur_state[i.index] = i
+            for i in prev_state.indices_info:
+                if i.index in cur_state:
+                    cur_state[i.index].set_prev_state(i)
 
         self.multilistbox = MultiSelectListWidget(self.indices_info)
         super(IndicesListWidget, self).__init__(self.multilistbox)
@@ -596,7 +616,8 @@ class MainScreenWidget(urwid.WidgetWrap):
 
     def refresh(self):
         # poor man's refresh
-        self.main_pile.contents[2] =  (IndicesListWidget(self, self.es), self.main_pile.contents[2][1])
+        self.prev_indices_list, size  = self.main_pile.contents[2]
+        self.main_pile.contents[2] =  (IndicesListWidget(self, self.es, self.prev_indices_list), size)
 
 
 if __name__ == "__main__":
