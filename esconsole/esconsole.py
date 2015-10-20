@@ -266,6 +266,8 @@ class IndicesListWidget(urwid.WidgetWrap):
             self.append_index_after_index_under_cursor()
         elif key == 'R':
             self.replicate_selected_indices()
+        elif key == ' ':
+            self.main.refresh()
         else:
             return super(IndicesListWidget, self).keypress(size, key)
 
@@ -587,8 +589,6 @@ class MainScreenWidget(urwid.WidgetWrap):
     def keypress(self, size, key):
         if key == 'q':
             raise urwid.ExitMainLoop()
-        elif key == ' ':
-            self.refresh()
         elif key == '?':
             HelpPopupWidget(self, self.loop)
         else:
