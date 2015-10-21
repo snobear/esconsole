@@ -280,7 +280,7 @@ class IndicesInfo(object):
 
     @property
     def headers(self):
-        return self.cat_indices_response.headers + ['age', 'segments', 'hot', 'merging']
+        return ['health', 'status', 'index', 'pri', 'rep', 'docs_count', 'store_size', 'pri_store_size', 'age', 'segments', 'hot', 'merging']
 
     def __len__(self):
         return len(self.index_infos)
