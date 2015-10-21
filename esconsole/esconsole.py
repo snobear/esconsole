@@ -20,12 +20,18 @@ def debug(s):
     debug_fh.flush()
 
 def byte_format(num):
+    if num is None or num == "":
+        return ""
     num = float(num)
     for suffix in ['b', 'kb', 'mb', 'gb', 'tb', 'pb']:
         if num < 1000:
             if suffix == 'b':
-                return "%d%s" % (num, suffix)
-            return "%.1f%s" % (num, suffix)
+                return "%6d%s" % (num, suffix)
+            formatted = "%5.1f" % (num)
+            whole, decimal = formatted.split(".")
+            if decimal == "0":
+                return "  %s%s" % (whole, suffix)
+            return "%s%s" % (formatted, suffix)
         num = num / 1000
 
 class MultiSelectListWidget(urwid.WidgetWrap):
