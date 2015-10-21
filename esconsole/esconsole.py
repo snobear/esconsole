@@ -313,6 +313,8 @@ class IndicesListWidget(urwid.WidgetWrap):
             self.delete_selected_indices()
         elif key == 'A':
             self.append_index_after_index_under_cursor()
+        elif key == 'O':
+            self.optimize_selected_indices()
         elif key == 'R':
             self.replicate_selected_indices()
         elif key == ' ':
@@ -345,6 +347,21 @@ class IndicesListWidget(urwid.WidgetWrap):
             self.es.indices.delete(i.index)
 
         # TODO - validate they are deleted
+        self.main.refresh()
+
+    def optimize_selected_indices(self):
+        self.main.popup(SingleNumberInputPopup("Optimize %d indices" % (len(self.selected())), "Max Segments : ", 10, self.optimize_selected_indices_answer))
+
+    def optimize_selected_indices_answer(self, cancel, max_num_segments):
+        if cancel:
+            return
+
+        indices = [self.indices_info[ndx] for ndx in self.selected()]
+        for i in indices:
+            self.es.indices.optimize(i.index, max_num_segments=max_num_segments, wait_for_merge=False)
+            # dirty trick - manually change store size so it will show up as merging on refresh
+            i.pri_store_size = "optimizing"
+
         self.main.refresh()
 
     def replicate_selected_indices(self):
@@ -627,6 +644,8 @@ class HelpPopupWidget(urwid.WidgetWrap):
 
     D                   delete selected indices
     A                   append new index after index under cursor
+    O                   optimize selected indices
+    R                   change # replicas on selected indices
     C                   create index (not implemented)
 --------------------------------------------------------------------------------
 
