@@ -332,7 +332,7 @@ class IndicesListWidget(urwid.WidgetWrap):
         if key == 'D':
             self.delete_selected_indices()
         elif key == 'A':
-            self.append_index_after_index_under_cursor()
+            self.append_index_after_selected_index()
         elif key == 'O':
             self.optimize_selected_indices()
         elif key == 'R':
@@ -409,16 +409,20 @@ class IndicesListWidget(urwid.WidgetWrap):
     def index_under_cursor(self):
         return self.indices_info[self.multilistbox.item_under_cursor()]
 
-    def append_index_after_index_under_cursor(self):
-        index_under_cursor = self.index_under_cursor()
+    def append_index_after_selected_index(self):
+        indices = [self.indices_info[ndx] for ndx in self.selected()]
+        if len(indices) != 1:
+            return
+
+        index = indices[0]
 
         # Come up with suggestion for new index name
         # This will break for non date type indices
-        ts, msec = index_under_cursor.index.split(".")
+        ts, msec = index.index.split(".")
         msec = int(msec.rstrip("z"))
         suggestion = "%s.%03dz" % (ts, msec+1)
 
-        self.main.popup(IndexInputPopup("Create index after %s" % index_under_cursor.index, suggestion, index_under_cursor.pri, index_under_cursor.rep, self.create_index))
+        self.main.popup(IndexInputPopup("Create index after %s" % index.index, suggestion, index.pri, index.rep, self.create_index))
 
     def create_index(self, cancel, index, primaries, replicas):
         if cancel:
@@ -663,7 +667,7 @@ class HelpPopupWidget(urwid.WidgetWrap):
                                 OPERATIONS
 
     D                   delete selected indices
-    A                   append new index after index under cursor
+    A                   append new index after selected index
     O                   optimize selected indices
     R                   change # replicas on selected indices
     C                   create index (not implemented)
