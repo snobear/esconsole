@@ -62,6 +62,13 @@ class MultiSelectListWidget(urwid.WidgetWrap):
 
         super(MultiSelectListWidget, self).__init__(pile)
 
+    def filter(self, filter_text):
+        if filter_text == "":
+            filter_text = ".*"
+        filter_re = re.compile(filter_text)
+
+        
+
     def selected(self):
         result = []
         i = 0
@@ -224,7 +231,7 @@ class IndexInfo(object):
             return "?"
 
         if self.prev_state.docs_count != self.docs_count:
-            return "y"
+            return "hot"
         return ""
 
 
@@ -267,6 +274,7 @@ class IndicesListWidget(urwid.WidgetWrap):
         self.es = es
         self.main = main
         self.indices_info = IndicesInfo(CatIndicesResponse(self.es.cat.indices()), CatSegmentsResponse(self.es.cat.segments()))
+        self.filter_text = ""
 
         if prev_state:
             cur_state = {}
@@ -288,11 +296,21 @@ class IndicesListWidget(urwid.WidgetWrap):
             self.replicate_selected_indices()
         elif key == ' ':
             self.main.refresh()
+        elif key == '/':
+            pass
         else:
             return super(IndicesListWidget, self).keypress(size, key)
 
     def selected(self):
         return self.multilistbox.selected()
+
+    def filter(self):
+        self.main.popup(SingleTextInputPopup("Enter filter text (python compatible regex)", 'Regex : ', self.filter_text, self.filter_answer))
+
+    def filter_answer(self, cancel, filter_text):
+        if cancel:
+            return
+        self.multilistbox.filter(filter_text)
 
     def delete_selected_indices(self):
         self.main.popup_yes_no("Delete %d indices?" % (len(self.selected())), self.delete_selected_indices_answer)
@@ -370,6 +388,47 @@ class NumberEdit(urwid.Edit):
 
     def value(self):
         return int(self.edit_text)
+
+
+class SingleTextInputPopup(urwid.WidgetWrap):
+    """ Asks for a single string """
+
+    def __init__(self, title, caption, default, callback):
+        self.callback = callback
+        self.edit_box = urwid.Edit(caption=caption, edit_text=default)
+
+        pile = urwid.Pile([
+            urwid.Text(title),
+            urwid.Divider('-'),
+            self.edit_box,
+            urwid.Divider(' '),
+            urwid.Text('(enter to accept, esc to cancel)')
+        ])
+
+        frame = urwid.Frame(urwid.LineBox(urwid.Filler(pile)))
+        super(SingleTextInputPopup, self).__init__(frame)
+
+    def keypress(self, size, key):
+        if key == 'esc':
+            self.hide()
+            self.call_callback(True)
+        elif key == 'enter':
+            self.hide()
+            self.call_callback(False)
+        else:
+            return super(SingleTextInputPopup, self).keypress(size, key)
+
+    def show_popup(self, base, loop):
+        self.base = base
+        self.loop = loop
+        self.overlay = urwid.Overlay(self, self.base, 'center', 60, 'middle', 7)
+        self.loop.widget = self.overlay
+
+    def call_callback(self, cancel):
+        self.callback(cancel, self.edit_box.edit_text)
+
+    def hide(self):
+        self.loop.widget = self.base
 
 class SingleNumberInputPopup(urwid.WidgetWrap):
     """ Asks for a single number """
@@ -540,8 +599,7 @@ class HelpPopupWidget(urwid.WidgetWrap):
 
     v                   mark for multi-operation
     c                   clear selections
-    f                   filter (not implemented)
-    /                   search (not implemented)
+    /                   filter (not implemented)
 --------------------------------------------------------------------------------
 
                                 OPERATIONS
