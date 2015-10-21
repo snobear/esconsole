@@ -111,6 +111,12 @@ class MultiSelectListWidget(urwid.WidgetWrap):
             return super(MultiSelectListWidget, self).keypress(size, 'up')
         elif key == 'j':
             return super(MultiSelectListWidget, self).keypress(size, 'down')
+        elif key == 'g':
+            self.listbox.set_focus(0, 'below')
+            return super(MultiSelectListWidget, self).keypress(size, None)
+        elif key == 'G':
+            self.listbox.set_focus(len(self.listdata) - 1, 'above')
+            return super(MultiSelectListWidget, self).keypress(size, None)
         else:
             return super(MultiSelectListWidget, self).keypress(size, key)
 
@@ -646,8 +652,8 @@ class HelpPopupWidget(urwid.WidgetWrap):
     k, up arrow         up
     page down           page down
     page up             page up
-    g                   go to first line (not implemented)
-    G                   go to last line (not implemented)
+    g                   go to first line
+    G                   go to last line
 --------------------------------------------------------------------------------
 
                                    MISC
