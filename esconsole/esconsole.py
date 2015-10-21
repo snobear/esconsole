@@ -67,7 +67,6 @@ class MultiSelectListWidget(urwid.WidgetWrap):
             filter_text = ".*"
         filter_re = re.compile(filter_text)
 
-        
 
     def selected(self):
         result = []
@@ -234,6 +233,28 @@ class IndexInfo(object):
             return "hot"
         return ""
 
+    @property
+    def merging(self):
+        if not self.prev_state:
+            return "?"
+
+        if (self.prev_state.docs_count == self.docs_count
+                and self.prev_state.pri_store_size != self.pri_store_size):
+            return "merging"
+
+        return ""
+
+    @property
+    def replicating(self):
+        if not self.prev_state:
+            return "?"
+        if (self.prev_state.docs_count == self.docs_count
+                and self.prev_state.pri_store_size == self.pri_store_size
+                and self.prev_state.store_size != self.store_size):
+            return "rep"
+
+        return ""
+
 
     # route other attrs through cat_indices_info
     def __getattr__(self, attr):
@@ -259,7 +280,7 @@ class IndicesInfo(object):
 
     @property
     def headers(self):
-        return self.cat_indices_response.headers + ['age', 'segments', 'hot']
+        return self.cat_indices_response.headers + ['age', 'segments', 'hot', 'merging']
 
     def __len__(self):
         return len(self.index_infos)
