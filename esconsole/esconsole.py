@@ -19,6 +19,14 @@ def debug(s):
     debug_fh.write("\n")
     debug_fh.flush()
 
+def byte_format(num):
+    num = float(num)
+    for suffix in ['b', 'kb', 'mb', 'gb', 'tb', 'pb']:
+        if num < 1000:
+            if suffix == 'b':
+                return "%d%s" % (num, suffix)
+            return "%.1f%s" % (num, suffix)
+        num = num / 1000
 
 class MultiSelectListWidget(urwid.WidgetWrap):
     """ This widget implements generic selection and filtering on a list of passed in data. """
@@ -32,7 +40,7 @@ class MultiSelectListWidget(urwid.WidgetWrap):
             col_width[h] = len(h)
         for row in self.listdata:
             for h in self.listdata.headers:
-                val = getattr(row, h)
+                val = row.format(h)
                 if len(str(val)) > col_width[h]:
                     col_width[h] = len(str(val))
 
@@ -42,8 +50,8 @@ class MultiSelectListWidget(urwid.WidgetWrap):
         for row in self.listdata:
             el = []
             for h in self.listdata.headers:
-                padding = col_width[h] - len(str(getattr(row, h)))
-                el.append(str(getattr(row, h)) + (" " * padding))
+                padding = col_width[h] - len(str(row.format(h)))
+                el.append(str(row.format(h)) + (" " * padding))
             buttons.append(urwid.AttrMap(urwid.Button(" | ".join(el)), None, focus_map=None))
 
         # format headers
@@ -104,7 +112,7 @@ class CatIndicesResponseLine(object):
         def __init__(self, line):
             self.line = line
             hdrs = ['health', 'status', 'index', 'pri', 'rep', 'docs_count', 'docs_deleted', 'store_size', 'pri_store_size']
-            int_fields = set(['pri', 'rep', 'docs_count', 'docs_deleted'])
+            int_fields = set(['pri', 'rep', 'docs_count', 'docs_deleted', 'store_size', 'pri_store_size'])
             # es 1.7 headers ^
             # example lines
             # green  open   2015-10-10t00:00:00.000z   5   0          0            0       720b           720b
@@ -195,6 +203,12 @@ class IndexInfo(object):
 
     def set_prev_state(self, prev_state):
         self.prev_state = prev_state
+
+    def format(self, attr):
+        # format field names
+        if attr in ['pri_store_size', 'store_size']:
+            return byte_format(getattr(self, attr))
+        return getattr(self, attr)
 
     @property
     def age(self):
@@ -294,7 +308,7 @@ class IndicesListWidget(urwid.WidgetWrap):
     def __init__(self, main, es, prev_state=None):
         self.es = es
         self.main = main
-        self.indices_info = IndicesInfo(CatIndicesResponse(self.es.cat.indices()), CatSegmentsResponse(self.es.cat.segments()))
+        self.indices_info = IndicesInfo(CatIndicesResponse(self.es.cat.indices(bytes='b')), CatSegmentsResponse(self.es.cat.segments()))
         self.filter_text = ""
 
         if prev_state:
