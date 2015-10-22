@@ -230,9 +230,12 @@ class IndexInfo(object):
             return -1
 
         tstamp, msec = age_groups.group(1,2)
-        date = datetime.datetime.strptime(tstamp, "%Y-%m-%dt%H:%M:%S")
-        delta = datetime.datetime.now() - date
-        return delta.days
+        try:
+            date = datetime.datetime.strptime(tstamp, "%Y-%m-%dt%H:%M:%S")
+            delta = datetime.datetime.now() - date
+            return delta.days
+        except Exception as e:
+            return -1
 
     @property
     def segments(self):
