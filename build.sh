@@ -8,7 +8,9 @@ if [[ $# -eq 1 ]] ; then
     outdir=$1
 fi
 
-rm -rf $outdir
+if [[ $2 != "--no-delete" ]] ; then
+    rm -rf $outdir
+fi
 
 mkdir $outdir
 mkdir -p $outdir/usr/local/bin
