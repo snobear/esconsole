@@ -1,8 +1,12 @@
 #!/bin/bash
+set -x
 
-cd $(dirname $0)
+curdir=$(dirname $0)
 
 outdir=pkg
+if [[ $# -eq 1 ]] ; then
+    outdir=$1
+fi
 
 rm -rf $outdir
 
@@ -10,7 +14,7 @@ mkdir $outdir
 mkdir -p $outdir/usr/local/bin
 
 esconsole_script=$outdir/usr/local/bin/esconsole
-cp esconsole-launch.sh $outdir/usr/local/bin/esconsole
+cp $curdir/esconsole-launch.sh $outdir/usr/local/bin/esconsole
 chmod 755 $outdir/usr/local/bin/esconsole
 
 
@@ -20,11 +24,11 @@ venvdir=$optdir/venv
 mkdir -p $optdir
 
 
-virtualenv $venvdir
+(cd $optdir ; virtualenv venv)
 . $venvdir/bin/activate
 
-pip install -r requirements.txt
+pip install -r $curdir/requirements.txt
 
 
-cp LICENSE.txt $optdir
-cp -r esconsole $optdir
+cp $curdir/LICENSE.txt $optdir
+cp -r $curdir/esconsole $optdir
