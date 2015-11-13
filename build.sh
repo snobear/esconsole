@@ -4,7 +4,7 @@ set -x
 curdir=$(dirname $0)
 
 outdir=pkg
-if [[ $# -eq 1 ]] ; then
+if [[ $# -ne 0 ]] ; then
     outdir=$1
 fi
 
