@@ -2,4 +2,4 @@
 
 cd /opt/esconsole
 export PYTHONPATH=venv/bin/python2.7/lib
-esconsole
+./venv/bin/python esconsole/esconsole.py
