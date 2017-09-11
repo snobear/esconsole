@@ -1,6 +1,6 @@
 # ESConsole
 
-A ncurses text-based interface to exploring and managing Elasticsearch indices. Geared toward management of time-based indices.
+An ncurses text-based interface to exploring and managing Elasticsearch indices. Geared toward management of time-based indices.
 
 ## Usage
 
